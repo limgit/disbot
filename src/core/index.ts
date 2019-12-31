@@ -4,10 +4,12 @@ import { PREFIX } from '@/const';
 import { CustomCommand } from './types';
 import ping from './commands/ping';
 import select from './commands/select';
+import dice from './commands/dice';
 
 const commandList = [
   ping,
   select,
+  dice,
 ];
 
 const commands = new Discord.Collection<string, CustomCommand>();
