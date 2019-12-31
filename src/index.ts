@@ -38,8 +38,11 @@ client.on('message', (message) => {
   try {
     command.execute(message, argv);
   } catch (error) {
+    logger.error(argv);
     logger.error(error);
-    message.reply(`명령어 ${commandName}의 실행 중 에러가 발생했습니다.`);
+    const errmsg = `명령어 ${commandName}의 실행 중 에러가 발생했습니다.\n`
+      + `!help ${commandName}을 통해 사용법을 확인할 수 있습니다.`;
+    message.reply(errmsg);
   }
 });
 
