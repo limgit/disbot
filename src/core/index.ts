@@ -11,6 +11,11 @@ const commandList = [
   select,
   dice,
 ];
+commandList.sort((a, b) => {
+  if (a.command < b.command) return -1;
+  if (a.command === b.command) return 0;
+  return 1;
+});
 
 const commands = new Discord.Collection<string, CustomCommand>();
 
