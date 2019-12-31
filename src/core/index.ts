@@ -3,9 +3,11 @@ import Discord from 'discord.js';
 import { PREFIX } from '@/const';
 import { CustomCommand } from './types';
 import ping from './commands/ping';
+import select from './commands/select';
 
 const commandList = [
   ping,
+  select,
 ];
 
 const commands = new Discord.Collection<string, CustomCommand>();
