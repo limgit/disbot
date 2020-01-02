@@ -3,7 +3,9 @@ import { CustomCommand } from '@/core/types';
 const dice: CustomCommand = {
   command: 'dice',
   description: '굴려굴려 주사위',
-  usage: '<count>d<side>',
+  usage: [
+    { description: '<side>면을 가진 주사위를 <count>개 굴립니다', args: '<count>d<side>' },
+  ],
   execute(message, argv) {
     const [count, side] = argv[1].split('d').map((i) => Number(i));
 

@@ -27,7 +27,9 @@ commandList.forEach((command) => {
 const help: CustomCommand = {
   command: 'help',
   description: '사용 가능한 명령어에 대한 도움말입니다.',
-  usage: '[command name]',
+  usage: [
+    { description: '주어진 명령어에 대한 도움말을 보입니다', args: '[command_name]' }
+  ],
   execute(message, argv) {
     if (argv.length === 1) {
       const msg = [];
@@ -47,8 +49,16 @@ const help: CustomCommand = {
     const embed = new Discord.RichEmbed()
       .setColor('#00ff00')
       .setTitle(`\`${command.command}\``)
-      .setDescription(command.description)
-      .addField('사용법', `\`${PREFIX}${command.command} ${command.usage}\``);
+      .setDescription(command.description);
+
+    if (command.usage.length === 0) {
+      embed.addField('사용법', `\`${PREFIX}${command.command}\``);
+    } else {
+      command.usage.forEach((v, i) => {
+        const text = `\`${PREFIX}${command.command} ${v.args}\`\n${v.description}`;
+        embed.addField(`사용법 ${i+1}`, text);
+      });
+    }
 
     message.reply(embed);
   }
