@@ -1,4 +1,5 @@
 .vscode/
+db/
 build/
 node_modules/
 .python-version
