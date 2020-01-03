@@ -23,7 +23,7 @@ const money: CustomCommand = {
     { description: '최근 10개의 채무 이력을 보여줍니다. 이름이 주어질 경우 해당 인물과 관계된 채무 이력만 보여집니다.', args: 'list [이름]' },
     { description: '현재 채무 상태를 보여줍니다. 이름이 주어질 경우 해당 인물의 채무 상태를 보여줍니다.', args: 'status [이름]' },
     { description: '채무 정보를 추가합니다', args: 'debt <금액(원)> <채권자> <채무자> [사유]' },
-    { description: '더치페이 정보를 추가합니다', args: 'dutch <총 금액(원)> <자신 제외 더치페이 참여자 목록(쉼표 구분)> [사유]'},
+    { description: '더치페이 정보를 추가합니다', args: 'dutch <총 금액(원)> <채권자> <채권자 제외 더치페이 참여자 목록(쉼표 구분)> [사유]'},
     { description: '정산 정보를 추가합니다', args: 'clear <금액(원)> <채권자> <채무자> [사유]' },
   ],
   execute(message, argv) {
