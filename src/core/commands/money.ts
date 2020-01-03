@@ -43,7 +43,7 @@ const money: CustomCommand = {
           .setColor('#00ff00')
           .setTitle('최근 채무 이력 (시간 역순)')
           .setDescription(logs.join('\n'));
-        message.reply(embed);
+        message.channel.send(embed);
       })
     } else if (argv[1] === 'status') {
       if (argv[2] && !validateName(message, argv[2])) return;
