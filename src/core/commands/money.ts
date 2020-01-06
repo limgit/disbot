@@ -19,6 +19,7 @@ function validateName(message: Discord.Message, name: string) {
 const money: CustomCommand = {
   command: 'money',
   description: '돈 정산을 해줘요!',
+  aliases: ['m'],
   usage: [
     { description: '최근 10개의 채무 이력을 보여줍니다. 이름이 주어질 경우 해당 인물과 관계된 채무 이력만 보여집니다.', args: 'list [이름]' },
     { description: 'list 명령어의 별칭입니다', args: 'ls [이름]'},

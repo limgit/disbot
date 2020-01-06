@@ -23,6 +23,9 @@ const commands = new Discord.Collection<string, CustomCommand>();
 
 commandList.forEach((command) => {
   commands.set(command.command, command);
+  if (command.aliases) {
+    command.aliases.forEach((alias) => commands.set(alias, command));
+  }
 });
 
 // Help
@@ -52,6 +55,10 @@ const help: CustomCommand = {
       .setColor('#00ff00')
       .setTitle(`\`${command.command}\``)
       .setDescription(command.description);
+
+    if (command.aliases) {
+      embed.addField('별칭 목록', command.aliases.join(', '));
+    }
 
     if (command.usage.length === 0) {
       embed.addField('사용법', `\`${PREFIX}${command.command}\``);
