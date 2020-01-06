@@ -44,7 +44,7 @@ const money: CustomCommand = {
           .setTitle('최근 채무 이력 (시간 역순)')
           .setDescription(logs.join('\n'));
         message.channel.send(embed);
-      })
+      });
     } else if (argv[1] === 'status') {
       if (argv[2] && !validateName(message, argv[2])) return;
       const promise = argv[2] ? db.getBalances(argv[2]) : db.getBalances();
@@ -64,17 +64,19 @@ const money: CustomCommand = {
           const debtInfo = balance[name];
           const debtSum = Object.keys(debtInfo).reduce((acc, curr) => acc + debtInfo[curr], 0);
           const adj = debtSum >= 0 ? '갚을' : '받을';
-          const content = Object.keys(debtInfo).map((target) => {
+          const content = Object.keys(debtInfo).filter((target) => debtInfo[target] !== 0).map((target) => {
             const a = debtInfo[target];
             return `${target}에게 ${a >= 0 ? '갚을' : '받을'} 돈 ${Math.abs(a)}원`;
           });
-          embed.addField(
-            `${name} (총 ${adj} 돈 ${Math.abs(debtSum)}원)`,
-            content.join('\n'),
-          );
+          if (content.length !== 0) {
+            embed.addField(
+              `${name} (총 ${adj} 돈 ${Math.abs(debtSum)}원)`,
+              content.join('\n'),
+            );
+          }
         });
         message.channel.send(embed);
-      })
+      });
     } else if (argv[1] === 'transaction' || argv[1] === 't') {
       if (isNaN(argv[2] as any)) return message.reply('금액은 반드시 숫자여야 합니다');
       if (!validateName(message, argv[3]) || !validateName(message, argv[4])) return;
@@ -88,7 +90,7 @@ const money: CustomCommand = {
       const people = argv[4].split(',');
       if (people.some((person) => !validateName(message, person))) return;
       const val = Math.floor(Number(argv[2]) / (people.length + 1));
-      const reason = argv[5] ?? '' + ' (더치)';
+      const reason = (argv[5] ?? '') + ' (더치)';
       people.map((name) => {
         db.addTransaction(argv[3], name, reason, val).then(() => {
           message.reply(`${name}과의 더치페이가 추가되었습니다.`);
