@@ -22,9 +22,8 @@ const money: CustomCommand = {
   usage: [
     { description: '최근 10개의 채무 이력을 보여줍니다. 이름이 주어질 경우 해당 인물과 관계된 채무 이력만 보여집니다.', args: 'list [이름]' },
     { description: '현재 채무 상태를 보여줍니다. 이름이 주어질 경우 해당 인물의 채무 상태를 보여줍니다.', args: 'status [이름]' },
-    { description: '채무 정보를 추가합니다', args: 'debt <금액(원)> <채권자> <채무자> [사유]' },
-    { description: '더치페이 정보를 추가합니다', args: 'dutch <총 금액(원)> <채권자> <채권자 제외 더치페이 참여자 목록(쉼표 구분)> [사유]'},
-    { description: '정산 정보를 추가합니다', args: 'clear <금액(원)> <채권자> <채무자> [사유]' },
+    { description: '트랜잭션을 추가합니다', args: 'transaction <금액(원)> <준 사람> <받은 사람> [사유]' },
+    { description: '더치페이 정보를 추가합니다', args: 'dutch <총 금액(원)> <돈 낸 사람> <돈 낸 사람 제외 더치페이 참여자 목록(쉼표 구분)> [사유]'},
   ],
   execute(message, argv) {
     if (argv.length === 1) {
@@ -36,8 +35,7 @@ const money: CustomCommand = {
       promise.then((rows) => {
         const logs = rows.map((row) => {
           const date = new Date(row.createdAt);
-          const verb = row.amount > 0 ? '빌림' : '갚음';
-          return `${dateToStr(date)} - ${row.toName}, ${row.fromName}에게 ${Math.abs(row.amount)}원 ${verb} (사유: ${row.reason})`;
+          return `${dateToStr(date)} - ${row.fromName} ⇒ ${row.toName}: ${Math.abs(row.amount)}원 (사유: ${row.reason})`;
         });
         const embed = new Discord.RichEmbed()
           .setColor('#00ff00')
@@ -75,12 +73,12 @@ const money: CustomCommand = {
         });
         message.channel.send(embed);
       })
-    } else if (argv[1] === 'debt') {
+    } else if (argv[1] === 'transaction') {
       if (isNaN(argv[2] as any)) return message.reply('금액은 반드시 숫자여야 합니다');
       if (!validateName(message, argv[3]) || !validateName(message, argv[4])) return;
       const reason = argv[5] ?? '';
       db.addTransaction(argv[3], argv[4], reason, Number(argv[2])).then(() => {
-        message.reply('채무 이력이 추가되었습니다');
+        message.reply('트랜잭션이 추가되었습니다');
       });
     } else if (argv[1] === 'dutch') {
       if (isNaN(argv[2] as any)) return message.reply('금액은 반드시 숫자여야 합니다');
@@ -94,15 +92,8 @@ const money: CustomCommand = {
           message.reply(`${name}과의 더치페이가 추가되었습니다.`);
         });
       });
-    } else if (argv[1] === 'clear') {
-      if (isNaN(argv[2] as any)) return message.reply('금액은 반드시 숫자여야 합니다');
-      if (!validateName(message, argv[3]) || !validateName(message, argv[4])) return;
-      const reason = argv[5] ?? '';
-      db.addTransaction(argv[3], argv[4], reason, -Number(argv[2])).then(() => {
-        message.reply('정산 이력이 추가되었습니다');
-      });
     } else {
-      message.reply(`알려지지 않은 인자입니다: ${argv[2]}. \`!help money\`를 통해 자세한 사용법을 확인할 수 있습니다.`);
+      message.reply(`알려지지 않은 인자입니다: ${argv[1]}. \`!help money\`를 통해 자세한 사용법을 확인할 수 있습니다.`);
     }
   }
 }
