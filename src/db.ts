@@ -84,6 +84,9 @@ export class DB {
         this.run(`
           DELETE FROM balance WHERE name_a=? AND name_b=?
         `, [nameA, nameB]);
+        this.run(`
+          DELETE FROM transact WHERE (from_name=? AND to_name=?) OR (from_name=? AND to_name=?)
+        `, [nameA, nameB, nameB, nameA]); // Delete related transactions
       } else {
         this.run(`
           UPDATE balance SET debt=? WHERE name_a=? AND name_b=?
