@@ -79,9 +79,16 @@ export class DB {
       SELECT debt FROM balance WHERE name_a=? AND name_b=?
     `, [nameA, nameB]);
     if (row) {
-      this.run(`
-        UPDATE balance SET debt=? WHERE name_a=? AND name_b=?
-      `, [row.debt + debt, nameA, nameB]);
+      const newDebt = row.debt + debt;
+      if (newDebt === 0) {
+        this.run(`
+          DELETE FROM balance WHERE name_a=? AND name_b=?
+        `, [nameA, nameB]);
+      } else {
+        this.run(`
+          UPDATE balance SET debt=? WHERE name_a=? AND name_b=?
+        `, [row.debt + debt, nameA, nameB]);
+      }
     } else {
       this.run(`
         INSERT INTO balance (name_a, name_b, debt) VALUES (?, ?, ?)
@@ -90,18 +97,25 @@ export class DB {
     return true;
   }
 
-  async getTransactions(limit: number, name?: string) {
+  async getTransactions(limit: number, name1?: string, name2?: string) {
     let rows;
-    if (name) {
-      rows = await this.all(`
-        SELECT * FROM transact WHERE from_name=? OR to_name=? ORDER BY createdAt DESC LIMIT ?
-      `, [name, name, limit]);
+    if (name1) {
+      if (name2) {
+        rows = await this.all(`
+          SELECT * FROM transact WHERE (from_name=? OR to_name=?) AND (from_name=? OR to_name=?) ORDER BY createdAt DESC LIMIT ?
+        `, [name1, name1, name2, name2, limit]);
+      } else {
+        rows = await this.all(`
+          SELECT * FROM transact WHERE from_name=? OR to_name=? ORDER BY createdAt DESC LIMIT ?
+        `, [name1, name1, limit]);
+      }
     } else {
       rows = await this.all(`
         SELECT * FROM transact ORDER BY createdAt DESC LIMIT ?
       `, [limit]);
     }
     return rows.map((row) => ({
+      id: row.id,
       fromName: row.from_name,
       toName: row.to_name,
       amount: row.amount,
