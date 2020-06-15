@@ -37,8 +37,8 @@ const money: CustomCommand = {
     if (argv[1] === 'list' || argv[1] === 'ls') {
       if (isNaN(argv[2] as any)) return message.reply('트랜잭션 갯수는 반드시 숫자여야 합니다');
       const limit = Number(argv[2]);
-      if (argv[3] && !validateName(message, argv[2])) return;
-      if (argv[4] && !validateName(message, argv[3])) return;
+      if (argv[3] && !validateName(message, argv[3])) return;
+      if (argv[4] && !validateName(message, argv[4])) return;
       const promise = (() => {
         if (argv[3]) {
           if (argv[4]) return db.getTransactions(limit, argv[3], argv[4]);
