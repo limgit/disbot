@@ -171,10 +171,10 @@ export class DB {
     return true;
   }
 
-  async revertEvent(eventId: number) {
+  async undoEvent() {
     const row = await this.get(`
-      SELECT * FROM event WHERE id=?
-    `, [eventId]);
+      SELECT * FROM event ORDER BY created_at DESC LIMIT 1
+    `, []);
     if (row) {
       const convertedRow: Event = convertRow(row);
       // Update balance
@@ -190,7 +190,7 @@ export class DB {
       // Delete event
       await this.run(`
         DELETE FROM event WHERE id=?
-      `, [eventId]);
+      `, [convertedRow.id]);
       return true;
     } else {
       return false;
