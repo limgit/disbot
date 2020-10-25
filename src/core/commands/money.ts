@@ -23,8 +23,8 @@ const money: CustomCommand = {
   usage: [
     { description: '최근 n개의 이벤트를 보여줍니다. 이름(들)이 주어질 경우 해당 인물(들)과 관계된 이벤트만 보여집니다.', args: 'ls <n> [이름] [이름]' },
     { description: '현재 채무 상태를 보여줍니다. 이름이 주어질 경우 해당 인물의 채무 상태를 보여줍니다.', args: 'st [이름]' },
-    { description: '트랜잭션을 추가합니다', args: 't <금액(원)> <준 사람> <받은 사람> [사유]' },
-    { description: '더치페이 정보를 추가합니다', args: 'd <총 금액(원)> <돈 낸 사람> <돈 낸 사람 제외 더치페이 참여자 목록(쉼표 구분)> [사유]' },
+    { description: '트랜잭션을 추가합니다', args: 't <금액(원)> <준 사람> <받은 사람> [코멘트]' },
+    { description: '더치페이 정보를 추가합니다', args: 'd <총 금액(원)> <돈 낸 사람> <돈 낸 사람 제외 더치페이 참여자 목록(쉼표 구분)> [코멘트]' },
     { description: '마지막 이벤트의 등록을 취소합니다', args: 'undo'},
     { description: '두 사람의 채무를 청산합니다', args: 'clear [이름1] [이름2]' },
     { description: '채무 청산에 최소 트랜잭션을 발생시키는 방법을 출력합니다', args: 'plan <기준 사람> <기준 사람 제외 청산할 사람 목록(쉼표 구분)>' },
@@ -105,6 +105,9 @@ const money: CustomCommand = {
       const comment = argv.slice(5).join(' ');
       db.addTransaction(fromName, toName, comment, amount).then(() => {
         message.reply('트랜잭션이 추가되었습니다');
+        if (comment === '') {
+          message.reply('NOTE: 마지막 인자로 해당 트랜잭션의 코멘트를 추가할 수 있습니다');
+        }
       });
     }
     
@@ -118,6 +121,9 @@ const money: CustomCommand = {
       const comment = argv.slice(5).join(' ');
       db.addDutch(fromName, toNames, comment, amount).then(() => {
         message.reply('더치페이가 추가되었습니다');
+        if (comment === '') {
+          message.reply('NOTE: 마지막 인자로 해당 더치페이의 코멘트를 추가할 수 있습니다');
+        }
       });
     }
 
