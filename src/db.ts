@@ -3,6 +3,38 @@ import path from 'path';
 import sqlite3 from 'sqlite3';
 import logger from './logger';
 
+type Event = {
+  id: number,
+  eventType: 'pay' | 'clear' | 'dutch',
+  fromName: string,
+  toNames: string,
+  amount: number,
+  comment: string,
+  createdAt: Date,
+};
+
+type Balance = {
+  nameA: string,
+  nameB: string,
+  debt: number,
+};
+
+function getNowTs() {
+  return Math.floor(new Date().getTime() / 1000);
+}
+
+function convertRow(row: any): Event {
+  return {
+    id: row.id,
+    eventType: row.event_type,
+    fromName: row.from_name,
+    toNames: row.to_names,
+    amount: row.amount,
+    comment: row.comment,
+    createdAt: new Date(row.created_at * 1000),
+  };
+}
+
 export class DB {
   db: sqlite3.Database;
 
@@ -16,16 +48,18 @@ export class DB {
       }
     });
 
+    // event_type = 'pay' | 'repay' | 'dutch'
     this.run(`
-      CREATE TABLE IF NOT EXISTS transact (
+      CREATE TABLE IF NOT EXISTS event (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type VARCHAR(32),
         from_name VARCHAR(20),
-        to_name VARCHAR(20),
+        to_names TEXT,
         amount INTEGER,
-        reason TEXT,
-        createdAt DATETIME
+        comment TEXT,
+        created_at INTEGER
       )
-    `, []).then(() => logger.info('`transact` table initialized'))
+    `, []).then(() => logger.info('`event` table initialized'))
       .catch((err) => { throw err });
     this.run(`
       CREATE TABLE IF NOT EXISTS balance (
@@ -65,69 +99,125 @@ export class DB {
     });
   }
 
-  async addTransaction(from: string, to: string, reason: string, amount: number) {
-    try {
-      await this.run(`
-        INSERT INTO transact (from_name, to_name, amount, reason, createdAt) VALUES (?, ?, ?, ?, ?)
-      `, [from, to, amount, reason, new Date()])
-    } catch (err) {
-      throw err;
-    }
+  async updateBalance(from: string, to: string, amount: number) {
+    // from 이 to 에게 amount 만큼 빌려줬을 때 상태를 업데이트
     const [nameA, nameB] = from < to ? [from, to] : [to, from];
     const debt = from < to ? -amount : amount;
     const row = await this.get(`
       SELECT debt FROM balance WHERE name_a=? AND name_b=?
     `, [nameA, nameB]);
     if (row) {
-      const newDebt = row.debt + debt;
-      if (newDebt === 0) {
-        this.run(`
-          DELETE FROM balance WHERE name_a=? AND name_b=?
-        `, [nameA, nameB]);
-        this.run(`
-          DELETE FROM transact WHERE (from_name=? AND to_name=?) OR (from_name=? AND to_name=?)
-        `, [nameA, nameB, nameB, nameA]); // Delete related transactions
-      } else {
-        this.run(`
-          UPDATE balance SET debt=? WHERE name_a=? AND name_b=?
-        `, [row.debt + debt, nameA, nameB]);
-      }
+      this.run(`
+        UPDATE balance SET debt=? WHERE name_a=? AND name_b=?
+      `, [row.debt + debt, nameA, nameB]);
     } else {
       this.run(`
         INSERT INTO balance (name_a, name_b, debt) VALUES (?, ?, ?)
       `, [nameA, nameB, debt]);
     }
+  }
+
+  async addTransaction(from: string, to: string, comment: string, amount: number) {
+    // Add event
+    try {
+      await this.run(`
+        INSERT INTO event (event_type, from_name, to_names, amount, comment, created_at) VALUES ("pay", ?, ?, ?, ?, ?)
+      `, [from, to, amount, comment, getNowTs()])
+    } catch (err) {
+      throw err;
+    }
+    // Modify balance
+    await this.updateBalance(from, to, amount);
     return true;
   }
 
-  async getTransactions(limit: number, name1?: string, name2?: string) {
+  async addDutch(from: string, tos: string[], comment: string, totalAmount: number) {
+    // Add event
+    try {
+      await this.run(`
+        INSERT INTO event (event_type, from_name, to_names, amount, comment, created_at) VALUES ("dutch", ?, ?, ?, ?, ?)
+      `, [from, tos.join(','), totalAmount, comment, getNowTs()])
+    } catch (err) {
+      throw err;
+    }
+    // Modify balance
+    const dutchAmount = Math.ceil(totalAmount / (tos.length + 1));
+    await Promise.all(tos.map((toName) => this.updateBalance(from, toName, dutchAmount)));
+    return true;
+  }
+
+  async addClear(name1: string, name2: string,) {
+    const [nameA, nameB] = name1 < name2 ? [name1, name2] : [name2, name1];
+    const row = await this.get(`
+      SELECT debt FROM balance WHERE name_a=? AND name_b=?
+    `, [nameA, nameB]);
+    const debt = (() => {
+      if (row) return row.debt;
+      else return 0;
+    })();
+    if (debt === 0) return false;
+    // Add event
+    const amount = Math.abs(debt);
+    const [from, to] = debt > 0 ? [nameA, nameB] : [nameB, nameA];
+    try {
+      await this.run(`
+        INSERT INTO event (event_type, from_name, to_names, amount, comment, created_at) VALUES ("clear", ?, ?, ?, ?, ?)
+      `, [from, to, amount, '', getNowTs()])
+    } catch (err) {
+      throw err;
+    }
+    // Modify balance
+    await this.updateBalance(from, to, amount);
+    return true;
+  }
+
+  async revertEvent(eventId: number) {
+    const row = await this.get(`
+      SELECT * FROM event WHERE id=?
+    `, [eventId]);
+    if (row) {
+      const convertedRow: Event = convertRow(row);
+      // Update balance
+      if (['pay', 'clear'].includes(convertedRow.eventType)) {
+        await this.updateBalance(convertedRow.toNames, convertedRow.fromName, convertedRow.amount);
+      } else if (convertedRow.eventType === 'dutch') {
+        const people = convertedRow.toNames.split(',');
+        const dutchAmount = Math.ceil(convertedRow.amount / (people.length + 1));
+        await Promise.all(people.map((toName) => this.updateBalance(toName, convertedRow.fromName, dutchAmount)));  
+      } else {
+        throw new Error('Unknown event_type');
+      }
+      // Delete event
+      await this.run(`
+        DELETE FROM event WHERE id=?
+      `, [eventId]);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  async getEvents(limit: number, name1?: string, name2?: string): Promise<Event[]> {
     let rows;
     if (name1) {
       if (name2) {
         rows = await this.all(`
-          SELECT * FROM transact WHERE (from_name=? OR to_name=?) AND (from_name=? OR to_name=?) ORDER BY createdAt DESC LIMIT ?
-        `, [name1, name1, name2, name2, limit]);
+          SELECT * FROM event WHERE (from_name=? OR to_names LIKE ?) AND (from_name=? OR to_names LIKE ?) ORDER BY created_at DESC LIMIT ?
+        `, [name1, `%${name1}%`, name2, `%${name2}%`, limit]);
       } else {
         rows = await this.all(`
-          SELECT * FROM transact WHERE from_name=? OR to_name=? ORDER BY createdAt DESC LIMIT ?
-        `, [name1, name1, limit]);
+          SELECT * FROM event WHERE from_name=? OR to_names LIKE ? ORDER BY created_at DESC LIMIT ?
+        `, [name1, `%${name1}%`, limit]);
       }
     } else {
       rows = await this.all(`
-        SELECT * FROM transact ORDER BY createdAt DESC LIMIT ?
+        SELECT * FROM event ORDER BY created_at DESC LIMIT ?
       `, [limit]);
     }
-    return rows.map((row) => ({
-      id: row.id,
-      fromName: row.from_name,
-      toName: row.to_name,
-      amount: row.amount,
-      reason: row.reason,
-      createdAt: row.createdAt,
-    }));
+    return rows.map((row) => convertRow(row));
   }
 
-  async getBalances(name?: string) {
+  async getBalances(name?: string): Promise<Balance[]> {
     let rows;
     if (name) {
       rows = await this.all(`

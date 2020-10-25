@@ -21,43 +21,48 @@ const money: CustomCommand = {
   description: '돈 정산을 해줘요!',
   aliases: ['m'],
   usage: [
-    { description: '최근 n개의 트랜잭션을 보여줍니다. 이름(들)이 주어질 경우 해당 인물(들)과 관계된 트랜잭션만 보여집니다.', args: 'ls <n> [이름] [이름]' },
+    { description: '최근 n개의 이벤트를 보여줍니다. 이름(들)이 주어질 경우 해당 인물(들)과 관계된 이벤트만 보여집니다.', args: 'ls <n> [이름] [이름]' },
     { description: '현재 채무 상태를 보여줍니다. 이름이 주어질 경우 해당 인물의 채무 상태를 보여줍니다.', args: 'st [이름]' },
     { description: '트랜잭션을 추가합니다', args: 't <금액(원)> <준 사람> <받은 사람> [사유]' },
     { description: '더치페이 정보를 추가합니다', args: 'd <총 금액(원)> <돈 낸 사람> <돈 낸 사람 제외 더치페이 참여자 목록(쉼표 구분)> [사유]' },
+    { description: '두 사람의 채무를 청산합니다', args: 'clear [이름1] [이름2]' },
     { description: '채무 청산에 최소 트랜잭션을 발생시키는 방법을 출력합니다', args: 'plan <청산할 사람 목록(쉼표 구분)>' },
-    { description: '채무를 청산합니다', args: 'clear <청산할 사람 목록(쉼표 구분)>' },
   ],
   execute(message, argv) {
     if (argv.length === 1) {
       return message.reply('money 명령어는 최소 하나의 인자가 필요합니다. `!help money`를 통해 자세한 사용법을 확인할 수 있습니다.');
     }
+
     if (argv[1] === 'ls') {
-      if (isNaN(argv[2] as any)) return message.reply('트랜잭션 갯수는 반드시 숫자여야 합니다');
+      if (isNaN(argv[2] as any)) return message.reply('이벤트 갯수는 반드시 숫자여야 합니다');
       const limit = Number(argv[2]);
-      if (argv[3] && !validateName(message, argv[3])) return;
-      if (argv[4] && !validateName(message, argv[4])) return;
+      const name1 = argv[3];
+      const name2 = argv[4];
+      if (name1 && !validateName(message, name1)) return;
+      if (name2 && !validateName(message, name2)) return;
       const promise = (() => {
-        if (argv[3]) {
-          if (argv[4]) return db.getTransactions(limit, argv[3], argv[4]);
-          return db.getTransactions(limit, argv[3]);
+        if (name1) {
+          if (name2) return db.getEvents(limit, name1, name2);
+          return db.getEvents(limit, name1);
         }
-        return db.getTransactions(limit);
+        return db.getEvents(limit);
       })();
       promise.then((rows) => {
         const logs = rows.map((row) => {
-          const date = new Date(row.createdAt);
-          return `#${row.id}: ${dateToStr(date)} - ${row.fromName} ⇒ ${row.toName}: ${Math.abs(row.amount)}원 (사유: ${row.reason})`;
+          return `ID ${row.id}: ${dateToStr(row.createdAt)}, ${row.fromName} ⇒ ${row.toNames} (${row.eventType}): ${Math.abs(row.amount)}원 (${row.comment})`;
         });
         const embed = new Discord.RichEmbed()
           .setColor('#00ff00')
-          .setTitle('최근 트랜잭션 (시간 역순)')
+          .setTitle('최근 이벤트 (시간 역순)')
           .setDescription(logs.join('\n'));
         message.channel.send(embed);
       });
-    } else if (argv[1] === 'st') {
-      if (argv[2] && !validateName(message, argv[2])) return;
-      const promise = argv[2] ? db.getBalances(argv[2]) : db.getBalances();
+    }
+    
+    else if (argv[1] === 'st') {
+      const name = argv[2];
+      if (name && !validateName(message, name)) return;
+      const promise = name ? db.getBalances(name) : db.getBalances();
       promise.then((rows) => {
         const embed = new Discord.RichEmbed()
           .setColor('#00ff00')
@@ -87,26 +92,45 @@ const money: CustomCommand = {
         });
         message.channel.send(embed);
       });
-    } else if (argv[1] === 't') {
+    }
+
+    else if (argv[1] === 't') {
       if (isNaN(argv[2] as any)) return message.reply('금액은 반드시 숫자여야 합니다');
-      if (!validateName(message, argv[3]) || !validateName(message, argv[4])) return;
-      const reason = argv[5] ?? '';
-      db.addTransaction(argv[3], argv[4], reason, Number(argv[2])).then(() => {
+      const amount = Number(argv[2]);
+      const fromName = argv[3];
+      const toName = argv[4];
+      if (!validateName(message, fromName) || !validateName(message, toName)) return;
+      const comment = argv.slice(5).join(' ');
+      db.addTransaction(fromName, toName, comment, amount).then(() => {
         message.reply('트랜잭션이 추가되었습니다');
       });
-    } else if (argv[1] === 'd') {
+    }
+    
+    else if (argv[1] === 'd') {
       if (isNaN(argv[2] as any)) return message.reply('금액은 반드시 숫자여야 합니다');
-      if (!validateName(message, argv[3])) return;
-      const people = argv[4].split(',');
-      if (people.some((person) => !validateName(message, person))) return;
-      const val = Math.floor(Number(argv[2]) / (people.length + 1));
-      const reason = (argv[5] ?? '') + ' (더치)';
-      people.map((name) => {
-        db.addTransaction(argv[3], name, reason, val).then(() => {
-          message.reply(`${name}와/과의 더치페이가 추가되었습니다.`);
-        });
+      const amount = Number(argv[2]);
+      const fromName = argv[3]
+      if (!validateName(message, fromName)) return;
+      const toNames = argv[4].split(',');
+      if (toNames.some((person) => !validateName(message, person))) return;
+      const comment = argv.slice(5).join(' ');
+      db.addDutch(fromName, toNames, comment, amount).then(() => {
+        message.reply('더치페이가 추가되었습니다');
       });
-    } else if (argv[1] === 'plan') {
+    }
+    
+    else if (argv[1] === 'clear') {
+      const name1 = argv[2];
+      const name2 = argv[3];
+      if (!validateName(message, name1)) return;
+      if (!validateName(message, name2)) return;
+      db.addClear(name1, name2).then((res) => {
+        if (res) message.reply('정산 정보가 추가되었습니다.');
+        else message.reply('정산할 채무가 없습니다.');
+      });
+    }
+    
+    else if (argv[1] === 'plan') {
       const people = argv[2].split(',');
       if (people.some((person) => !validateName(message, person))) return;
       if (people.length < 2) return message.reply('두 명 이상의 사람을 명시해주세요');
@@ -132,22 +156,9 @@ const money: CustomCommand = {
         embed.setDescription(desc);
         message.channel.send(embed);
       });
-    } else if (argv[1] === 'clear') {
-      const people = argv[2].split(',');
-      if (people.some((person) => !validateName(message, person))) return;
-      if (people.length < 2) return message.reply('두 명 이상의 사람을 명시해주세요');
-      db.getBalances().then((rows) => {
-        const transactPromises = rows.filter((row) => (
-          people.includes(row.nameA) && people.includes(row.nameB)
-        )).map((row) => {
-          if (row.debt > 0) return db.addTransaction(row.nameA, row.nameB, `정산 (${argv[2]})`, Math.abs(row.debt));
-          return db.addTransaction(row.nameB, row.nameA, `정산 (${argv[2]})`, Math.abs(row.debt));
-        });
-        Promise.all(transactPromises).then(() => {
-          message.reply(`${argv[2]}의 정산이 완료되었습니다`);
-        });
-      })
-    } else {
+    }
+    
+    else {
       message.reply(`알려지지 않은 인자입니다: ${argv[1]}. \`!help money\`를 통해 자세한 사용법을 확인할 수 있습니다.`);
     }
   }
