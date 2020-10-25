@@ -27,7 +27,8 @@ const money: CustomCommand = {
     { description: '더치페이 정보를 추가합니다', args: 'd <총 금액(원)> <돈 낸 사람> <돈 낸 사람 제외 더치페이 참여자 목록(쉼표 구분)> [사유]' },
     { description: '마지막 이벤트의 등록을 취소합니다', args: 'undo'},
     { description: '두 사람의 채무를 청산합니다', args: 'clear [이름1] [이름2]' },
-    { description: '채무 청산에 최소 트랜잭션을 발생시키는 방법을 출력합니다', args: 'plan <청산할 사람 목록(쉼표 구분)>' },
+    { description: '채무 청산에 최소 트랜잭션을 발생시키는 방법을 출력합니다', args: 'plan <기준 사람> <기준 사람 제외 청산할 사람 목록(쉼표 구분)>' },
+    { description: 'plan 명령어의 결과 상태대로 DB 상태를 조정합니다', args: 'arrange <기준 사람> <기준 사람 제외 청산할 사람 목록(쉼표 구분)>' },
   ],
   execute(message, argv) {
     if (argv.length === 1) {
@@ -139,30 +140,73 @@ const money: CustomCommand = {
     }
     
     else if (argv[1] === 'plan') {
-      const people = argv[2].split(',');
+      const standard = argv[2];
+      if (!validateName(message, standard)) return;
+      const people = argv[3].split(',');
       if (people.some((person) => !validateName(message, person))) return;
-      if (people.length < 2) return message.reply('두 명 이상의 사람을 명시해주세요');
+      if (people.length < 1) return message.reply('기준 사람을 제외하고 한 사람 이상이 필요합니다.');
+      const allPeople = [standard, ...people];
       db.getBalances().then((rows) => {
         const embed = new Discord.RichEmbed()
           .setColor('#00ff00')
-          .setTitle(`${argv[2]} 정산 방법`);
+          .setTitle(`${allPeople.join(',')} 정산 방법`)
+          .setFooter('이 방법대로 정산하기 위해서는 arrange 명령어를 이용하세요.');
         const totalDebt: { [name: string]: number } = {};
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
-          if (!people.includes(row.nameA) || !people.includes(row.nameB)) continue; // Not the target
+          if (!allPeople.includes(row.nameA) || !allPeople.includes(row.nameB)) continue; // Not the target
           if (!(row.nameA in totalDebt)) totalDebt[row.nameA] = 0;
           if (!(row.nameB in totalDebt)) totalDebt[row.nameB] = 0;
           totalDebt[row.nameA] += row.debt;
           totalDebt[row.nameB] -= row.debt;
         }
-        const desc = Object.keys(totalDebt).map((name) => {
+        const desc = Object.keys(totalDebt).filter((name) => name !== standard).map((name) => {
           const debt = totalDebt[name];
-          const adj = debt > 0 ? '갚을' : '받을';
-          if (debt === 0) return `${name}: 알짜 정산 금액이 없습니다`;
-          return `${name}: 총 ${adj} 돈 ${Math.abs(debt)}원`;
+          const [from, to] = debt > 0 ? [name, standard] : [standard, name];
+          return `${from}이(가) ${to}에게 ${Math.abs(debt)}원 송금하기`;
         }).join('\n');
         embed.setDescription(desc);
         message.channel.send(embed);
+      });
+    }
+
+    else if (argv[1] === 'arrange') {
+      const standard = argv[2];
+      if (!validateName(message, standard)) return;
+      const people = argv[3].split(',');
+      if (people.some((person) => !validateName(message, person))) return;
+      if (people.length < 1) return message.reply('정리를 위해서는 기준 외에 한 명 이상의 사람이 더 필요합니다.');
+      const allPeople = [standard, ...people];
+      const arrangeTs = Math.floor(new Date().getTime() / 1000);
+      (async () => {
+        await message.channel.send('정리 작업 시작. 완료시까지 다른 명령어를 사용하지 마세요.');
+        const rows = await db.getBalances();
+        await message.channel.send('채무 정리 계산 시작.');
+        const totalDebt: { [name: string]: number } = {};
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (!allPeople.includes(row.nameA) || !allPeople.includes(row.nameB)) continue; // Not the target
+          if (!(row.nameA in totalDebt)) totalDebt[row.nameA] = 0;
+          if (!(row.nameB in totalDebt)) totalDebt[row.nameB] = 0;
+          totalDebt[row.nameA] += row.debt;
+          totalDebt[row.nameB] -= row.debt;
+        }
+        await message.channel.send('채무 정리 계산 완료. 이전 채무 상태 초기화 시작.');
+        for (let i = 0; i < allPeople.length; i++) {
+          for (let j = i+1; j < allPeople.length; j++) {
+            await db.addClear(allPeople[i], allPeople[j], `정리 작업-${arrangeTs}`);
+          }
+        }
+        await message.channel.send('이전 채무 상태 초기화 완료. 정리된 상태로 채무 기록 재작성 시작.');
+        const targetNames = Object.keys(totalDebt).filter((name) => name !== standard);
+        for (let i = 0; i < targetNames.length; i++) {
+          const targetName = targetNames[i];
+          const debt = totalDebt[targetName];
+          const [from, to] = debt > 0 ? [targetName, standard] : [standard, targetName];
+          await db.addTransaction(to, from, `정리 작업-${arrangeTs}`, Math.abs(debt));
+        }
+      })().then(() => {
+        message.channel.send('정리 작업이 완료되었습니다.');
       });
     }
     

@@ -146,7 +146,7 @@ export class DB {
     return true;
   }
 
-  async addClear(name1: string, name2: string,) {
+  async addClear(name1: string, name2: string, comment?: string) {
     const [nameA, nameB] = name1 < name2 ? [name1, name2] : [name2, name1];
     const row = await this.get(`
       SELECT debt FROM balance WHERE name_a=? AND name_b=?
@@ -162,7 +162,7 @@ export class DB {
     try {
       await this.run(`
         INSERT INTO event (event_type, from_name, to_names, amount, comment, created_at) VALUES ("clear", ?, ?, ?, ?, ?)
-      `, [from, to, amount, '', getNowTs()])
+      `, [from, to, amount, comment ?? '', getNowTs()])
     } catch (err) {
       throw err;
     }
@@ -173,7 +173,7 @@ export class DB {
 
   async undoEvent() {
     const row = await this.get(`
-      SELECT * FROM event ORDER BY created_at DESC LIMIT 1
+      SELECT * FROM event ORDER BY id DESC LIMIT 1
     `, []);
     if (row) {
       const convertedRow: Event = convertRow(row);
@@ -202,16 +202,16 @@ export class DB {
     if (name1) {
       if (name2) {
         rows = await this.all(`
-          SELECT * FROM event WHERE (from_name=? OR to_names LIKE ?) AND (from_name=? OR to_names LIKE ?) ORDER BY created_at DESC LIMIT ?
+          SELECT * FROM event WHERE (from_name=? OR to_names LIKE ?) AND (from_name=? OR to_names LIKE ?) ORDER BY id DESC LIMIT ?
         `, [name1, `%${name1}%`, name2, `%${name2}%`, limit]);
       } else {
         rows = await this.all(`
-          SELECT * FROM event WHERE from_name=? OR to_names LIKE ? ORDER BY created_at DESC LIMIT ?
+          SELECT * FROM event WHERE from_name=? OR to_names LIKE ? ORDER BY id DESC LIMIT ?
         `, [name1, `%${name1}%`, limit]);
       }
     } else {
       rows = await this.all(`
-        SELECT * FROM event ORDER BY created_at DESC LIMIT ?
+        SELECT * FROM event ORDER BY id DESC LIMIT ?
       `, [limit]);
     }
     return rows.map((row) => convertRow(row));
