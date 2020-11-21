@@ -6,12 +6,14 @@ import ping from './commands/ping';
 import select from './commands/select';
 import dice from './commands/dice';
 import money from './commands/money';
+import baseball from './commands/baseball';
 
 const commandList = [
   ping,
   select,
   dice,
   money,
+  baseball,
 ];
 commandList.sort((a, b) => {
   if (a.command < b.command) return -1;

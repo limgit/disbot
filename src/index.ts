@@ -7,6 +7,8 @@ import commands from '@/core';
 import { PREFIX } from '@/const';
 
 import logger from './logger';
+import db from './db';
+import { getMeta } from './utils/utils';
 
 const client = new Discord.Client();
 
@@ -49,6 +51,76 @@ client.on('message', (message) => {
     '차라리 군대를 가', '가능', '불가능',
   ];
   message.channel.send(ANSWERS[Math.floor(Math.random() * ANSWERS.length)]);
+});
+
+// Baseball game
+function getBaseballResult(target: string, answer: string) {
+  let s = 0;
+  let b = 0;
+  const targetLi = target.split('');
+  const answerLi = answer.split('');
+  // Get strikes
+  for (let i = 0; i < target.length; i++) {
+    if (targetLi[i] === answerLi[i]) {
+      // Same position, same number
+      s += 1;
+      // Remove it so that it never counts twice
+      targetLi[i] = '';
+      answerLi[i] = '';
+    }
+  }
+  // Time for balls
+  for (let i = 0; i < target.length; i++) {
+    if (targetLi[i] === '') continue;
+    const pos = answerLi.findIndex((v) => v === targetLi[i]);
+    if (pos > -1) {
+      b += 1;
+      // Remove it so that it never counts twice
+      targetLi[i] = '';
+      answerLi[pos] = '';
+    }
+  }
+  return {
+    s,
+    b,
+  };
+}
+const NUM_REGEX = /^\d+$/;
+client.on('message', (message) => {
+  const { content } = message;
+  if (!NUM_REGEX.test(content)) return;
+
+  const authorId = message.author.id;
+  (async () => {
+    const res = await db.getBaseballSession(authorId);
+    if (res === false) return;
+    const meta = getMeta(res.meta);
+    if (meta.digits !== content.length) return;
+    if (!meta.allowDuplicates && new Set(content.split('')).size !== content.length) return message.reply('중복된 숫자를 포함할 수 없습니다.');
+    if (content.split('').filter((e) => Number(e) > meta.maxNum).length !== 0) return message.reply(`0에서 ${meta.maxNum}까지의 숫자만 사용할 수 있습니다.`);
+
+    const thisTrial = res.trial + 1;
+    const { s, b } = getBaseballResult(content, res.answer);
+    const logs = [...res.log, `${content}: ${s}S ${b}B`];
+    const logStr = logs.map((e, i) => `${i + 1}번째 시도 - ${e}`).join('\n');
+    if (s !== meta.digits) {
+      // Not finished
+      const { trialLimit } = meta;
+      if (trialLimit !== -1 && trialLimit <= thisTrial) {
+        await db.dropBaseballSession(authorId);
+        message.reply(`정해진 ${trialLimit}회의 시도 내에 정답을 찾지 못해 패배했습니다. 세션을 종료합니다.\n시도 로그:\n${logStr}`);
+      } else {
+        await db.updateBaseballSession(authorId, thisTrial, logs);
+        message.reply(`${thisTrial}번째 시도: ${s}S ${b}B${trialLimit === -1 ? '' : `, 남은 시도 횟수 ${trialLimit - thisTrial}`}`);
+      }
+    } else {
+      // Finished!
+      await db.dropBaseballSession(authorId);
+      message.reply(`총 ${thisTrial}번의 시도만에 정답 ${res.answer}를 맞췄습니다! 세션을 종료합니다.\n시도 로그:\n${logStr}`);
+    }
+  })().catch((err) => {
+    message.reply(`에러가 발생했습니다: ${JSON.stringify(err)}`);
+  });
 });
 
 client.login(process.env.TOKEN);

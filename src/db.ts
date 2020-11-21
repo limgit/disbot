@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import sqlite3 from 'sqlite3';
 import logger from './logger';
+import { BaseballMeta } from './utils/types';
 
 type Event = {
   id: number,
@@ -70,6 +71,16 @@ export class DB {
       )
     `, []).then(() => logger.info('`balance` table initialized'))
       .catch((err) => { throw err; });
+    this.run(`
+      CREATE TABLE IF NOT EXISTS baseball_session (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id VARCHAR(32),
+        answer VARCHAR(4),
+        trial INTEGER,
+        log TEXT,
+        meta TEXT
+      )
+    `, []).then(() => logger.info('`baseball_session` table initialized'));
   }
 
   async run(sql: string, params: any[]) {
@@ -99,6 +110,9 @@ export class DB {
     });
   }
 
+  /* ******** */
+  /* Balances */
+  /* ******** */
   async updateBalance(from: string, to: string, amount: number) {
     // from 이 to 에게 amount 만큼 빌려줬을 때 상태를 업데이트
     const [nameA, nameB] = from < to ? [from, to] : [to, from];
@@ -233,6 +247,49 @@ export class DB {
       nameB: row.name_b,
       debt: row.debt,
     }));
+  }
+
+  /* ******** */
+  /* Baseball */
+  /* ******** */
+  async getBaseballSession(userId: string) {
+    const row = await this.get(`
+      SELECT * FROM baseball_session WHERE user_id=?
+    `, [userId]);
+    if (row) {
+      return {
+        answer: row.answer as string,
+        trial: row.trial as number,
+        log: row.log.split(',').filter((e: string) => e !== '') as string[],
+        meta: JSON.parse(row.meta) as BaseballMeta,
+      };
+    }
+    return false;
+  }
+
+  async createBaseballSession(userId: string, answer: string, meta: BaseballMeta) {
+    try {
+      await this.run(`
+        INSERT INTO baseball_session (user_id, answer, trial, log, meta) VALUES (?, ?, 0, '', ?)
+      `, [userId, answer, JSON.stringify(meta)]);
+    } catch (err) {
+      throw err;
+    }
+    return true;
+  }
+
+  async updateBaseballSession(userId: string, trial: number, log: string[]) {
+    this.run(`
+      UPDATE baseball_session SET trial=?, log=? WHERE user_id=?
+    `, [trial, log.join(','), userId]);
+    return true;
+  }
+
+  async dropBaseballSession(userId: string) {
+    await this.run(`
+      DELETE FROM baseball_session WHERE user_id=?
+    `, [userId]);
+    return true;
   }
 }
 
