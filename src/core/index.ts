@@ -53,7 +53,7 @@ const help: CustomCommand = {
       return message.reply(`\`${commandName}\` 명령어를 찾을 수 없습니다. \`${PREFIX}help\`로 사용 가능한 명령어를 확인할 수 있습니다.`);
     }
 
-    const embed = new Discord.RichEmbed()
+    const embed = new Discord.MessageEmbed()
       .setColor('#00ff00')
       .setTitle(`\`${command.command}\``)
       .setDescription(command.description);

@@ -53,7 +53,7 @@ const money: CustomCommand = {
         const logs = rows.map((row) => {
           return `ID ${row.id}: ${dateToStr(row.createdAt)}, ${row.fromName} ⇒ ${row.toNames} (${row.eventType}): ${Math.abs(row.amount)}원 (${row.comment})`;
         });
-        const embed = new Discord.RichEmbed()
+        const embed = new Discord.MessageEmbed()
           .setColor('#00ff00')
           .setTitle('최근 이벤트 (시간 역순)')
           .setDescription(logs.join('\n'));
@@ -66,7 +66,7 @@ const money: CustomCommand = {
       if (name && !validateName(message, name)) return;
       const promise = name ? db.getBalances(name) : db.getBalances();
       promise.then((rows) => {
-        const embed = new Discord.RichEmbed()
+        const embed = new Discord.MessageEmbed()
           .setColor('#00ff00')
           .setTitle('현재 채무 상태')
         const balance: { [a: string]: { [b: string]: number }} = {};
@@ -153,7 +153,7 @@ const money: CustomCommand = {
       if (people.length < 1) return message.reply('기준 사람을 제외하고 한 사람 이상이 필요합니다.');
       const allPeople = [standard, ...people];
       db.getBalances().then((rows) => {
-        const embed = new Discord.RichEmbed()
+        const embed = new Discord.MessageEmbed()
           .setColor('#00ff00')
           .setTitle(`${allPeople.join(',')} 정산 방법`)
           .setFooter('이 방법대로 정산하기 위해서는 arrange 명령어를 이용하세요.');
