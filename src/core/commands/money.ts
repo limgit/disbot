@@ -102,6 +102,7 @@ const money: CustomCommand = {
       const fromName = argv[3];
       const toName = argv[4];
       if (!validateName(message, fromName) || !validateName(message, toName)) return;
+      if (fromName === toName) return message.reply('준 사람과 받은 사람이 같을 수 없습니다');
       const comment = argv.slice(5).join(' ');
       db.addTransaction(fromName, toName, comment, amount).then(() => {
         message.reply('트랜잭션이 추가되었습니다');
@@ -119,6 +120,7 @@ const money: CustomCommand = {
       const toNames = argv[4].split(',');
       if (toNames.some((person) => !validateName(message, person))) return;
       if (toNames.includes(fromName)) return message.reply('더치페이 지불자가 더치페이 참여자에 포함될 수 없습니다');
+      if ((new Set(toNames)).size !== toNames.length) return message.reply('더치페이 참여자는 모두 달라야 합니다');
       const comment = argv.slice(5).join(' ');
       db.addDutch(fromName, toNames, comment, amount).then(() => {
         message.reply('더치페이가 추가되었습니다');
@@ -140,6 +142,7 @@ const money: CustomCommand = {
       const name2 = argv[3];
       if (!validateName(message, name1)) return;
       if (!validateName(message, name2)) return;
+      if (name1 === name2) return message.reply('두 이름이 달라야 합니다');
       db.addClear(name1, name2).then((res) => {
         if (res) message.reply('정산 정보가 추가되었습니다.');
         else message.reply('정산할 채무가 없습니다.');
@@ -152,6 +155,8 @@ const money: CustomCommand = {
       const people = argv[3].split(',');
       if (people.some((person) => !validateName(message, person))) return;
       if (people.length < 1) return message.reply('기준 사람을 제외하고 한 사람 이상이 필요합니다.');
+      if (people.includes(standard)) return message.reply('기준 사람은 나머지 사람 목록에 포함될 수 없습니다');
+      if ((new Set(people)).size !== people.length) return message.reply('나머지 사람 목록은 모두 달라야 합니다');
       const allPeople = [standard, ...people];
       db.getBalances().then((rows) => {
         const embed = new Discord.MessageEmbed()
@@ -183,6 +188,8 @@ const money: CustomCommand = {
       const people = argv[3].split(',');
       if (people.some((person) => !validateName(message, person))) return;
       if (people.length < 1) return message.reply('정리를 위해서는 기준 외에 한 명 이상의 사람이 더 필요합니다.');
+      if (people.includes(standard)) return message.reply('기준 사람은 나머지 사람 목록에 포함될 수 없습니다');
+      if ((new Set(people)).size !== people.length) return message.reply('나머지 사람 목록은 모두 달라야 합니다');
       const allPeople = [standard, ...people];
       const arrangeTs = Math.floor(new Date().getTime() / 1000);
       (async () => {
