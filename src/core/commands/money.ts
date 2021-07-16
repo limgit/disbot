@@ -118,6 +118,7 @@ const money: CustomCommand = {
       if (!validateName(message, fromName)) return;
       const toNames = argv[4].split(',');
       if (toNames.some((person) => !validateName(message, person))) return;
+      if (toNames.includes(fromName)) return message.reply('더치페이 지불자가 더치페이 참여자에 포함될 수 없습니다');
       const comment = argv.slice(5).join(' ');
       db.addDutch(fromName, toNames, comment, amount).then(() => {
         message.reply('더치페이가 추가되었습니다');
