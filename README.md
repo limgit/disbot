@@ -2,6 +2,12 @@
 
 개인용 디스코드 봇
 
+## TODO
+
+discord.js v14 에 맞춰서 코드를 아예 재작성하기.
+
+그리고 봇에 Message Content Intent 허용한것도 날려도 될 듯?
+
 ## How to use
 
 1. `git clone https://github.com/limgit/disbot` 으로 레포 클론

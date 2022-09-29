@@ -43,7 +43,7 @@ const help: CustomCommand = {
       msg.push('사용 가능한 명령어 목록은 다음과 같습니다:');
       msg.push(commandList.map(cmd => cmd.command).join(', '));
       msg.push(`\`${PREFIX}help [command name]\`을 통해 특정 명령어의 세부적인 사용법을 확인할 수 있습니다.`);
-      return message.reply(msg, { split: true });
+      return message.reply(msg.join("\n"));
     }
 
     const commandName = argv[1];
@@ -53,25 +53,25 @@ const help: CustomCommand = {
       return message.reply(`\`${commandName}\` 명령어를 찾을 수 없습니다. \`${PREFIX}help\`로 사용 가능한 명령어를 확인할 수 있습니다.`);
     }
 
-    const embed = new Discord.MessageEmbed()
+    const embed = new Discord.EmbedBuilder()
       .setColor('#00ff00')
       .setTitle(`\`${command.command}\``)
       .setDescription(command.description);
 
     if (command.aliases) {
-      embed.addField('별칭 목록', command.aliases.join(', '));
+      embed.addFields({ name: '별칭 목록', value: command.aliases.join(', ') });
     }
 
     if (command.usage.length === 0) {
-      embed.addField('사용법', `\`${PREFIX}${command.command}\``);
+      embed.addFields({ name: '사용법', value: `\`${PREFIX}${command.command}\`` });
     } else {
       command.usage.forEach((v, i) => {
         const text = `\`${PREFIX}${command.command} ${v.args}\`\n${v.description}`;
-        embed.addField(`사용법 ${i+1}`, text);
+        embed.addFields({ name: `사용법 ${i+1}`, value: text });
       });
     }
 
-    message.reply(embed);
+    message.reply({ embeds: [embed] });
   }
 }
 commands.set(help.command, help);

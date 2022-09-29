@@ -53,11 +53,11 @@ const money: CustomCommand = {
         const logs = rows.map((row) => {
           return `ID ${row.id}: ${dateToStr(row.createdAt)}, ${row.fromName} ⇒ ${row.toNames} (${row.eventType}): ${Math.abs(row.amount)}원 (${row.comment})`;
         });
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
           .setColor('#00ff00')
           .setTitle('최근 이벤트 (시간 역순)')
           .setDescription(logs.join('\n'));
-        message.channel.send(embed);
+        message.channel.send({ embeds: [embed] });
       });
     }
     
@@ -66,7 +66,7 @@ const money: CustomCommand = {
       if (name && !validateName(message, name)) return;
       const promise = name ? db.getBalances(name) : db.getBalances();
       promise.then((rows) => {
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
           .setColor('#00ff00')
           .setTitle('현재 채무 상태')
         const balance: { [a: string]: { [b: string]: number }} = {};
@@ -86,13 +86,13 @@ const money: CustomCommand = {
             return `${target}에게 ${a >= 0 ? '갚을' : '받을'} 돈 ${Math.abs(a)}원`;
           });
           if (content.length !== 0) {
-            embed.addField(
-              `${name} (총 ${adj} 돈 ${Math.abs(debtSum)}원)`,
-              content.join('\n'),
-            );
+            embed.addFields({
+              name: `${name} (총 ${adj} 돈 ${Math.abs(debtSum)}원)`,
+              value: content.join('\n'),
+            });
           }
         });
-        message.channel.send(embed);
+        message.channel.send({ embeds: [embed] });
       });
     }
 
@@ -159,10 +159,10 @@ const money: CustomCommand = {
       if ((new Set(people)).size !== people.length) return message.reply('나머지 사람 목록은 모두 달라야 합니다');
       const allPeople = [standard, ...people];
       db.getBalances().then((rows) => {
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
           .setColor('#00ff00')
           .setTitle(`${allPeople.join(',')} 정산 방법`)
-          .setFooter('이 방법대로 정산하기 위해서는 arrange 명령어를 이용하세요.');
+          .setFooter({ text: '이 방법대로 정산하기 위해서는 arrange 명령어를 이용하세요.' });
         const totalDebt: { [name: string]: number } = {};
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
@@ -178,7 +178,7 @@ const money: CustomCommand = {
           return `${from}이(가) ${to}에게 ${Math.abs(debt)}원 송금하기`;
         }).join('\n');
         embed.setDescription(desc);
-        message.channel.send(embed);
+        message.channel.send({ embeds: [embed] });
       });
     }
 

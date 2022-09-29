@@ -13,7 +13,7 @@ const dice: CustomCommand = {
     const msg = [];
     msg.push(`합: ${result.reduce((acc, curr) => acc + curr, 0)}`);
     msg.push(`주사위 세부 결과: ${result.join(', ')}`);
-    message.reply(msg);
+    message.reply({ content: msg.join("\n") });
   }
 }
 export default dice;

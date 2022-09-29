@@ -10,14 +10,17 @@ import logger from './logger';
 import db from './db';
 import { getMeta } from './utils/utils';
 
-const client = new Discord.Client();
+const { TOKEN, } = process.env;
+if (!TOKEN) throw Error('TOKEN must be set');
+
+const client = new Discord.Client({ intents: [Discord.GatewayIntentBits.Guilds, Discord.GatewayIntentBits.GuildMessages, Discord.GatewayIntentBits.GuildMessageReactions, Discord.GatewayIntentBits.MessageContent] });
 
 client.on('ready', () => {
-  logger.info('Bot is now ready');
+  logger.info(`Bot is now ready as ${client.user!.tag}!`);
 });
 
 // Regular commands
-client.on('message', (message) => {
+client.on('messageCreate', (message) => {
   if (!message.content.startsWith(PREFIX) || message.author.bot) return;
 
   const argv = message.content.slice(PREFIX.length).split(/ +/);
@@ -25,7 +28,8 @@ client.on('message', (message) => {
   const command = commands.get(commandName);
 
   if (!command) {
-    return message.reply(`\`${commandName}\` 명령어를 찾을 수 없습니다. \`${PREFIX}help\`로 사용 가능한 명령어를 확인할 수 있습니다.`);
+    message.reply(`\`${commandName}\` 명령어를 찾을 수 없습니다. \`${PREFIX}help\`로 사용 가능한 명령어를 확인할 수 있습니다.`);
+    return;
   }
 
   try {
@@ -36,12 +40,12 @@ client.on('message', (message) => {
     const errmsg = [];
     errmsg.push(`명령어 \`${commandName}\`의 실행 중 에러가 발생했습니다.`);
     errmsg.push(`\`!help ${commandName}\`을 통해 사용법을 확인할 수 있습니다.`);
-    message.reply(errmsg);
+    message.reply({ content: errmsg.join("\n") });
   }
 });
 
 // Special commands
-client.on('message', (message) => {
+client.on('messageCreate', (message) => {
   if (!message.content.includes('소라고둥님')) return;
 
   const ANSWERS = [
@@ -86,7 +90,7 @@ function getBaseballResult(target: string, answer: string) {
   };
 }
 const NUM_REGEX = /^\d+$/;
-client.on('message', (message) => {
+client.on('messageCreate', (message) => {
   const { content } = message;
   if (!NUM_REGEX.test(content)) return;
 
@@ -97,7 +101,7 @@ client.on('message', (message) => {
     const meta = getMeta(res.meta);
     if (meta.digits !== content.length) return;
     if (!meta.allowDuplicates && new Set(content.split('')).size !== content.length) return message.reply('중복된 숫자를 포함할 수 없습니다.');
-    if (content.split('').filter((e) => Number(e) > meta.maxNum).length !== 0) return message.reply(`0에서 ${meta.maxNum}까지의 숫자만 사용할 수 있습니다.`);
+    if (content.split('').filter((e: any) => Number(e) > meta.maxNum).length !== 0) return message.reply(`0에서 ${meta.maxNum}까지의 숫자만 사용할 수 있습니다.`);
 
     const thisTrial = res.trial + 1;
     const { s, b } = getBaseballResult(content, res.answer);
@@ -123,4 +127,4 @@ client.on('message', (message) => {
   });
 });
 
-client.login(process.env.TOKEN);
+client.login(TOKEN);
